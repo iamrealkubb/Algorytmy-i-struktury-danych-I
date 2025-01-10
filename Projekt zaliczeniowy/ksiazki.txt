@@ -1,0 +1,12 @@
+1|"Pan Tadeusz"|Adam Mickiewicz|1
+2|"Potop"|Henryk Sienkiewicz|1
+3|"Kordian"|Juliusz Slowacki|1
+4|"Jezyk C++"|Stephen Prata|1
+5|"Algorytmy i struktury danych"|Alfred V.Aho|1
+6|"Python"|Mark Lutz|1
+7|"Wprowadzenie do algorytmow"|Thomas Cormen|1
+8|"Inny swiat"|Gustaw Herling-Grudzinsk|1
+9|"Zdazyc przed Panem Bogiem"|Hanna Krall|1
+10|"Lalka"|Boleslaw Prus|1
+11|"Ferdydurke"|Witold Gombrowicz|1
+12|"Wiedzmin"|Andrzej Sapkowski|1

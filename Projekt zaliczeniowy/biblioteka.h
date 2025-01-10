@@ -6,6 +6,9 @@
 #include <string>
 #include <iostream>
 #include <vector>
+#include <sstream>
+#include <fstream>
+#include <algorithm>
 
 void czyszczenieBufora() {
     std::cin.ignore(100, '\n');
@@ -38,7 +41,7 @@ private:
 public:
     Ksiazka(int identyfikator, const std::string& tytul, const std::string& autor) {
         this->identyfikator = identyfikator;
-        this->tytul = "\"" + tytul + "\"";
+        this->tytul = tytul;
         this->autor = autor;
         this->czyDostepna = true;
     }
@@ -72,6 +75,34 @@ public:
         std::cout << "ID: " << identyfikator << std::endl;
         std::cout << "Autor: " << autor << std::endl;
         std::cout << "Czy jest dostepna: " << (czyDostepna ? "Tak" : "Nie") << std::endl;
+    }
+
+    void ustawDostepnosc(bool dostepnosc) {
+        this->czyDostepna = dostepnosc;
+    }
+
+    void zapiszDoPliku(std::ofstream& plik) const {
+        plik << identyfikator << "|" << tytul << "|" << autor << "|" << czyDostepna << "\n";
+    }
+
+    static Ksiazka wczytajZPliku(std::ifstream& plik) {
+        int id;
+        std::string tytul;
+        std::string autor;
+        bool dostepna;
+        std::string linia;
+        if (std::getline(plik, linia)) {
+            std::stringstream ss(linia);
+            std::getline(ss, linia, '|');
+            id = std::stoi(linia);
+            std::getline(ss, tytul, '|');
+            std::getline(ss, autor, '|');
+            std::getline(ss, linia);
+            dostepna = std::stoi(linia);
+        }
+        Ksiazka ksiazka(id, tytul, autor);
+        ksiazka.ustawDostepnosc(dostepna);
+        return ksiazka;
     }
 };
 
@@ -116,6 +147,42 @@ public:
         for (Ksiazka ksiazka : wypozyczoneKsiazki) {
             std::cout << "-> " << ksiazka.pobierzAutora() << " " << ksiazka.pobierzTytul() << std::endl;
         }
+    }
+
+    void zapiszDoPliku(std::ofstream& plik) const {
+        plik << identyfikator << "|" << imie;
+        for (const auto& ksiazka : wypozyczoneKsiazki) {
+            plik << "|" << ksiazka.pobierzIdentyfikator();
+        }
+        plik << "\n";
+    }
+
+    static Czytelnik wczytajZPliku(const std::string& linia, std::vector<Ksiazka>& ksiazki) {
+        std::stringstream ss(linia);
+        std::string fragment;
+
+        std::getline(ss, fragment, '|');
+        int id = std::stoi(fragment);
+        std::string imie;
+        std::getline(ss, imie, '|');
+
+        Czytelnik czytelnik(id, imie);
+
+        while (std::getline(ss, fragment, '|')) {
+            int idKsiazki = std::stoi(fragment);
+            auto it = std::find_if(ksiazki.begin(), ksiazki.end(), [&idKsiazki](const Ksiazka& k) {
+                return k.pobierzIdentyfikator() == idKsiazki;
+            });
+            if (it != ksiazki.end()) {
+                czytelnik.wypozyczKsiazke(*it);
+            }
+        }
+
+        return czytelnik;
+    }
+
+    const std::vector<Ksiazka>& pobierzWypozyczoneKsiazki() const {
+        return wypozyczoneKsiazki;
     }
 };
 
@@ -257,6 +324,116 @@ public:
                 return;
             }
         }
+    }
+
+    void zapiszDane() const {
+        std::ofstream plikKsiazki("ksiazki.txt");
+        for (const auto& ksiazka : ksiazki) {
+            ksiazka.zapiszDoPliku(plikKsiazki);
+        }
+        plikKsiazki.close();
+
+        std::ofstream plikCzytelnicy("czytelnicy.txt");
+        for (const auto& czytelnik : czytelnicy) {
+            czytelnik.zapiszDoPliku(plikCzytelnicy);
+        }
+        plikCzytelnicy.close();
+    }
+
+    void wczytajDane() {
+        ksiazki.clear();
+        czytelnicy.clear();
+
+        std::ifstream plikKsiazki("ksiazki.txt");
+        if (!plikKsiazki.is_open()) {
+            std::cerr << "Blad otwierania pliku z ksiazkami!" << std::endl;
+            return;
+        }
+        while (plikKsiazki.peek() != EOF) {
+            ksiazki.push_back(Ksiazka::wczytajZPliku(plikKsiazki));
+        }
+        plikKsiazki.close();
+
+        std::ifstream plikCzytelnicy("czytelnicy.txt");
+        if (!plikCzytelnicy.is_open()) {
+            std::cerr << "Blad otwierania pliku z czytelnikami!" << std::endl;
+            return;
+        }
+        std::string linia;
+        while (std::getline(plikCzytelnicy, linia)) {
+            if (!linia.empty()) {
+                czytelnicy.push_back(Czytelnik::wczytajZPliku(linia, ksiazki));
+            }
+        }
+        plikCzytelnicy.close();
+    }
+
+    int ileCzytelnikow() {
+        return czytelnicy.size();
+    }
+
+    std::vector<Ksiazka>& pobierzKsiazki() {
+        return ksiazki;
+    }
+
+    const std::vector<Ksiazka>& pobierzKsiazki() const {
+        return ksiazki;
+    }
+
+    const std::vector<Czytelnik>& pobierzCzytelnikow() const {
+        return czytelnicy;
+    }
+};
+
+class Administrator {
+public:
+    void dodajKsiazke(Biblioteka& biblioteka, int id, const std::string& tytul, const std::string& autor) {
+        Ksiazka nowaKsiazka(id, tytul, autor);
+        biblioteka.dodajKsiazke(nowaKsiazka);
+        std::cout << "Dodano nowa ksiazke: " << tytul << " (id: " << id << ")\n";
+    }
+
+    void zmienDostepnoscKsiazki(Biblioteka& biblioteka, int idKsiazki) {
+        auto& ksiazki = biblioteka.pobierzKsiazki();
+        auto it = std::find_if(ksiazki.begin(), ksiazki.end(), [idKsiazki](const Ksiazka& ksiazka) {
+            return ksiazka.pobierzIdentyfikator() == idKsiazki;
+        });
+
+        if (it != ksiazki.end()) {
+            if (it->sprawdzDostepnosc()) {
+                it->ustawDostepnosc(false);
+                std::cout << "Ksiazka o ID: " << idKsiazki << " zostala oznaczona jako niedostepna.\n";
+            } else
+            {
+                it->ustawDostepnosc(true);
+                std::cout << "Ksiazka o ID: " << idKsiazki << " zostala oznaczona jako dostepna.\n";
+            }
+        } else {
+            std::cout << "Nie znaleziono ksiazki o ID: " << idKsiazki << "\n";
+        }
+    }
+
+    void pokazStatusKsiazek(const Biblioteka& biblioteka) {
+        const auto& ksiazki = biblioteka.pobierzKsiazki();
+        for (const auto& ksiazka : ksiazki) {
+            std::cout << "ID: " << ksiazka.pobierzIdentyfikator()
+                      << ", Tytul: " << ksiazka.pobierzTytul()
+                      << ", Autor: " << ksiazka.pobierzAutora()
+                      << ", Dostepnosc: " << (ksiazka.sprawdzDostepnosc() ? "Dostepna" : "Niedostepna") << "\n";
+        }
+    }
+
+    void sprawdzKtoWypozyczylKsiazke(const Biblioteka& biblioteka, int idKsiazki) {
+        const auto& czytelnicy = biblioteka.pobierzCzytelnikow();
+        for (const auto& czytelnik : czytelnicy) {
+            for (const auto& ksiazka : czytelnik.pobierzWypozyczoneKsiazki()) {
+                if (ksiazka.pobierzIdentyfikator() == idKsiazki) {
+                    std::cout << "Ksiazka o ID: " << idKsiazki << " zostala wypozyczona przez: " << czytelnik.pobierzImie() << ", id: " << czytelnik.pobierzIdentyfikator() << "\n";
+                    return;
+                }
+            }
+        }
+        std::cout << "Ksiazka o ID: " << idKsiazki << " nie zostala wypozyczona.\n";
     }
 };
 
